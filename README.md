@@ -57,18 +57,19 @@ flowchart LR
     U -->|HTTPS| CF[CloudFront Distribution]
 
     %% WAF at the edge
-    WAF[[AWS WAF v2\nManaged Rules + Rate Limit]]
+    WAF[[AWS WAF v2<br/>Managed Rules + Rate Limit]]
     CF --- WAF
 
     %% Logs
-    CF -->|Standard Logs| S3L[(S3 Logs Bucket)]
+    CF -->|Logs| S3L[(S3 Logs Bucket)]
 
     %% Origin path
-    CF -->|HTTP :3000\n(origin-facing only)| EC2[(EC2: Juice Shop\nDocker on :3000)]
+    CF -->|Forward traffic to EC2 on port 3000| EC2[(EC2: Juice Shop<br/>Docker container)]
 
     %% Security Group
-    EC2 --- SG{{SG:\n22 from My IP\n3000 from CloudFront prefix list}}
+    EC2 --- SG{{Security Group:<br/>SSH only from my IP<br/>App traffic only from CloudFront}}
 
     %% Observability
     EC2 --> CW[CloudWatch Metrics]
-    CW --> ALRM[[CPU ≥ 70% Alarm\n-> SNS Email]]
+    CW --> ALRM[[CPU ≥ 70% Alarm<br/>-> SNS Email]]
+
