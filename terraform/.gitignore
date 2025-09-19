@@ -1,0 +1,32 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform.tfvars            # often contains creds/IDs in other projects
+*.auto.tfvars               # same risk if used
+*.tfplan
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Shell/env files & keys
+.env
+*.pem
+*.key
+*.pfx
+*.ppk
+
+# Logs & dumps
+*.log
+logs/

@@ -1,0 +1,8 @@
+region           = "us-east-2"
+my_ip_cidr       = "X.X.X.X/32"     # <-- put YOUR IP here
+key_name         = "my-keypair"     # <-- existing EC2 key pair
+logs_bucket_name = "addison-juice-logs-123456"  # must be globally unique
+
+# Optionally pin a vpc/subnet (not right now)
+# vpc_id    = "vpc-xxxxxxxx"
+# subnet_id = "subnet-xxxxxxxx"
