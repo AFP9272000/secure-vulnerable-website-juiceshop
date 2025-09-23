@@ -1,6 +1,14 @@
+##
+# EC2 instance and security group to run the vulnerable Juice Shop app.
+#
+# This file defines a restrictive security group, a user‑data script to
+# install Docker and start the application, and the EC2 instance
+# itself.  The user‑data script now uses the `juice_shop_image`
+# variable so that it can pin the Docker image to a specific version.
+
 # Security group that:
-# - Allows SSH from my IP only
-# - Allows HTTP app port (3000) ONLY from CloudFront origin-facing IP prefix list
+# - Allows SSH from your IP only
+# - Allows HTTP app port (3000) ONLY from CloudFront origin‑facing IP prefix list
 resource "aws_security_group" "juice" {
   name        = "${var.project}-sg"
   description = "Lock EC2 to CloudFront origin-facing IPs and allow SSH from my IP"
@@ -35,7 +43,7 @@ resource "aws_security_group_rule" "app_in_from_cf" {
   description       = "App traffic from CloudFront origin-facing IPs only"
 }
 
-# Egress: allow all (So the instance can pull the Docker image)
+# Egress: allow all (so the instance can pull the Docker image)
 resource "aws_security_group_rule" "egress_all" {
   type              = "egress"
   security_group_id = aws_security_group.juice.id
@@ -47,67 +55,48 @@ resource "aws_security_group_rule" "egress_all" {
 }
 
 # User data: install Docker and run Juice Shop on 3000
-# NOTE: Docker image is public; no IAM role is required
+# NOTE: Docker image is public; no IAM role is required.  We use
+# `var.juice_shop_image` instead of `latest` to pin the image.  The
+# interpolation is expanded by Terraform when applying the template.
 locals {
-  user_data = <<-EOT
-    #!/bin/bash
-    set -euxo pipefail
+  # cloud-init: install docker, create a systemd service for Juice Shop, enable & start it
+  user_data = <<-EOF
+    #cloud-config
+    package_update: true
+    packages:
+      - docker
+      - cloud-utils-growpart
+      - xfsprogs
 
-    LOG=/var/log/user-data.log
-    exec > >(tee -a "$LOG") 2>&1
+    write_files:
+      - path: /etc/systemd/system/juice.service
+        permissions: "0644"
+        owner: root:root
+        content: |
+          [Unit]
+          Description=OWASP Juice Shop Docker Service
+          After=network-online.target docker.service
+          Wants=network-online.target
+          Requires=docker.service
 
-    echo "[user-data] start $(date -Is)"
+          [Service]
+          Type=notify
+          TimeoutStartSec=0
+          Restart=always
+          ExecStartPre=/usr/bin/docker rm -f juice >/dev/null 2>&1 || true
+          ExecStartPre=/usr/bin/docker pull bkimminich/juice-shop:latest
+          ExecStart=/usr/bin/docker run --name juice -p 3000:3000 --restart unless-stopped bkimminich/juice-shop:latest
 
-    #--- wait for network (up to ~2 min) ---
-    for i in {1..24}; do
-      if curl -sSf https://aws.amazon.com >/dev/null; then
-        echo "[user-data] network OK"
-        break
-      fi
-      echo "[user-data] waiting for network... ($i)"
-      sleep 5
-    done
+          [Install]
+          WantedBy=multi-user.target
 
-    #--- install docker (Amazon Linux 2023) ---
-    dnf -y update || true
-    dnf -y install docker cloud-utils-growpart xfsprogs
-    systemctl enable --now docker
-
-    # allow ec2-user to use docker (future SSH convenience)
-    usermod -aG docker ec2-user || true
-
-    #--- prune any leftovers (just in case) ---
-    docker system prune -af || true
-
-    #--- pull image (retry up to 5 times) ---
-    for i in {1..5}; do
-      if docker pull bkimminich/juice-shop:latest; then
-        echo "[user-data] image pulled"
-        break
-      fi
-      echo "[user-data] pull failed, retry ($i)"
-      sleep 5
-    done
-
-    # stop/remove any old container with same name
-    docker rm -f juice || true
-
-    #--- run container on 3000 ---
-    docker run -d --name juice --restart unless-stopped -p 3000:3000 bkimminich/juice-shop:latest
-
-    #--- readiness check (wait up to ~60s) ---
-    for i in {1..30}; do
-      if curl -sSf http://localhost:3000 >/dev/null; then
-        echo "[user-data] app is up"
-        break
-      fi
-      echo "[user-data] waiting for app... ($i)"
-      sleep 2
-    done
-
-    echo "[user-data] done $(date -Is)"
-  EOT
+    runcmd:
+      - [ sh, -lc, "systemctl enable --now docker" ]
+      - [ sh, -lc, "systemctl daemon-reload" ]
+      - [ sh, -lc, "systemctl enable --now juice.service" ]
+  EOF
 }
+
 
 resource "aws_instance" "juice" {
   ami                         = data.aws_ami.al2023.id
@@ -115,10 +104,12 @@ resource "aws_instance" "juice" {
   subnet_id                   = local.use_subnet_id
   vpc_security_group_ids      = [aws_security_group.juice.id]
   key_name                    = var.key_name
-  user_data                   = local.user_data
-  associate_public_ip_address = true # public origin behind CloudFront
+  associate_public_ip_address = true
 
-  # expand root disk to 20 GiB (default is ~8 GiB)
+  # IMPORTANT: pass cloud-init user-data
+  user_data = local.user_data
+
+  # avoid “no space left on device”
   root_block_device {
     volume_size = 20
     volume_type = "gp3"

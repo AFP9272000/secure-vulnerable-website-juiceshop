@@ -1,8 +1,25 @@
-region           = "us-east-2"
-my_ip_cidr       = "X.X.X.X/32"     # <-- put YOUR IP here
-key_name         = "my-keypair"     # <-- existing EC2 key pair
-logs_bucket_name = "addison-juice-logs-123456"  # must be globally unique
+## Example tfvars file for the Juice Shop CloudFront/WAF deployment.
 
-# Optionally pin a vpc/subnet (not right now)
+# Primary region
+region           = "us-east-2"
+
+# CIDR for your workstation/IP to allow SSH access (22/tcp)
+my_ip_cidr       = "X.X.X.X/32"
+
+# Name of an existing EC2 key pair for SSH access
+key_name         = "my-keypair"
+
+# Globally unique S3 bucket name to store CloudFront logs
+logs_bucket_name = "addison-juice-logs-123456"
+
+## Optional network overrides.  Uncomment to pin resources to an existing VPC/subnet
 # vpc_id    = "vpc-xxxxxxxx"
 # subnet_id = "subnet-xxxxxxxx"
+
+## New variables introduced by the security improvements
+
+# Email address subscribed to SNS alerts
+alert_email      = "you@example.com"
+
+# Pin Juice Shop Docker image to a specific version/digest
+juice_shop_image = "bkimminich/juice-shop:15.0.0"
