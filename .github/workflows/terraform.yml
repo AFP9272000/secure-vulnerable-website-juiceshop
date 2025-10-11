@@ -1,6 +1,6 @@
 name: Terraform CI/CD
 
-# This workflow formats, initializes, validates, plans and optionally applies
+# This workflow formats, initializes, validates, plans and optionally applies 
 # the Terraform configuration whenever the user pushes changes.  It uses
 # GitHub secrets for AWS credentials and requires manual approval
 # before applying to production.
