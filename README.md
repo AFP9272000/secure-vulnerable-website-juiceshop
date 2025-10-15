@@ -16,7 +16,7 @@ This project demonstrates how to take an insecure app and wrap it with AWS-nativ
 
 ---
 
-## What This deploys:
+## What This deploys: 
 - **EC2 Instance (Amazon Linux 2023)**  
   - Runs OWASP Juice Shop in Docker on port `3000`  
   - Root volume expanded to 20 GiB to accommodate Docker image  
