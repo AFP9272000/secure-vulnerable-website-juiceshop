@@ -1,7 +1,7 @@
-name: Terraform Destroy (Manual Trigger)
+name: Terraform Full Destroy (Manual Trigger)
 
 on:
-  workflow_dispatch: # Only runs manually
+  workflow_dispatch: # Manual only — for safety!
 
 env:
   TF_VERSION: 1.6.0
@@ -10,7 +10,7 @@ env:
 
 jobs:
   terraform-destroy:
-    name: Destroy AWS Infrastructure
+    name: Full Terraform Destroy
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,13 +32,24 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -upgrade
+
+      - name: Terraform Refresh
+        run: terraform refresh
 
       - name: Terraform Destroy
-        run: terraform destroy -auto-approve
+        run: terraform destroy -auto-approve -lock=false -refresh=true
         env:
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
           TF_VAR_site_bucket_name: ${{ secrets.TF_VAR_SITE_BUCKET_NAME }}
           TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
           TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
+
+      - name: Verify No Stragglers (Safety Sweep)
+        run: |
+          echo "Running AWS sweep for leftover resources..."
+          aws ec2 describe-instances --filters "Name=tag:Project,Values=juice" --region $AWS_REGION
+          aws s3 ls | grep juice || true
+          aws cloudfront list-distributions --region $AWS_REGION
+          echo "If any resources remain, destroy them manually with 'terraform state rm' + 'apply/destroy'."
