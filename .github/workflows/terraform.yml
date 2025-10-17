@@ -63,6 +63,8 @@ jobs:
         env:
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
+          TF_VAR_site_bucket_name: ${{ secrets.TF_VAR_SITE_BUCKET_NAME }}
+          TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
         continue-on-error: true
 
       - name: Upload plan as artifact (PRs only)
@@ -79,6 +81,8 @@ jobs:
           TF_IN_AUTOMATION: true
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
+          TF_VAR_site_bucket_name: ${{ secrets.TF_VAR_SITE_BUCKET_NAME }}
+          TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
 
       - name: Post plan status
         if: steps.plan.outcome == 'failure'
