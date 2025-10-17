@@ -60,6 +60,8 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: terraform plan -no-color
+        env:
+          TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
         continue-on-error: true
 
       - name: Upload plan as artifact (PRs only)
