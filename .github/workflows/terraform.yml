@@ -62,6 +62,7 @@ jobs:
         run: terraform plan -no-color
         env:
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
+          TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
         continue-on-error: true
 
       - name: Upload plan as artifact (PRs only)
@@ -76,6 +77,8 @@ jobs:
         run: terraform apply -auto-approve
         env:
           TF_IN_AUTOMATION: true
+          TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
+          TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
 
       - name: Post plan status
         if: steps.plan.outcome == 'failure'
