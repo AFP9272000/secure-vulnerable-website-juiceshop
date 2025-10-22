@@ -36,14 +36,25 @@ jobs:
 
       - name: Terraform Refresh
         run: terraform refresh
-
-      - name: Terraform Destroy
-        run: terraform destroy -auto-approve -lock=false -refresh=true
-        env:
+         env:
+          TF_VAR_project: juice-shop-cf-waf
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
+          TF_VAR_site_bucket_name: ${{ secrets.TF_VAR_SITE_BUCKET_NAME }}
           TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
           TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
+        env:
+        TF_VAR_project: juice-shop-cf-waf
+         TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
+         TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
+         TF_VAR_site_bucket_name: ${{ secrets.TF_VAR_SITE_BUCKET_NAME }}
+         TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
+         TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
+         TF_IN_AUTOMATION: true
+
 
       - name: Verify No Stragglers (Safety Sweep)
         run: |
