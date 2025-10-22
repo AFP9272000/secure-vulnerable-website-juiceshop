@@ -1,7 +1,7 @@
-name: Terraform Full Destroy (Manual Trigger)
+name: Terraform Destroy (Manual Trigger)
 
 on:
-  workflow_dispatch: # Manual only — for safety!
+  workflow_dispatch: # Runs only when manually triggered in GitHub Actions
 
 env:
   TF_VERSION: 1.6.0
@@ -10,11 +10,12 @@ env:
 
 jobs:
   terraform-destroy:
-    name: Full Terraform Destroy
+    name: Destroy AWS Infrastructure
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ${{ env.TF_WORKING_DIR }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,11 +33,18 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init -upgrade
+        run: terraform init -reconfigure
+
+      - name: Run Checkov Security Scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ${{ env.TF_WORKING_DIR }}
+          framework: terraform
+          soft_fail: true  # Don't block destroy even if security findings exist
 
       - name: Terraform Refresh
         run: terraform refresh
-         env:
+        env:
           TF_VAR_project: juice-shop-cf-waf
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
@@ -47,19 +55,10 @@ jobs:
       - name: Terraform Destroy
         run: terraform destroy -auto-approve
         env:
-        TF_VAR_project: juice-shop-cf-waf
-         TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
-         TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
-         TF_VAR_site_bucket_name: ${{ secrets.TF_VAR_SITE_BUCKET_NAME }}
-         TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
-         TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
-         TF_IN_AUTOMATION: true
-
-
-      - name: Verify No Stragglers (Safety Sweep)
-        run: |
-          echo "Running AWS sweep for leftover resources..."
-          aws ec2 describe-instances --filters "Name=tag:Project,Values=juice" --region $AWS_REGION
-          aws s3 ls | grep juice || true
-          aws cloudfront list-distributions --region $AWS_REGION
-          echo "If any resources remain, destroy them manually with 'terraform state rm' + 'apply/destroy'."
+          TF_VAR_project: juice-shop-cf-waf
+          TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
+          TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
+          TF_VAR_site_bucket_name: ${{ secrets.TF_VAR_SITE_BUCKET_NAME }}
+          TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
+          TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
+          TF_IN_AUTOMATION: true
