@@ -1,170 +1,4 @@
-name: Juice Shop Destroy Infrastructure
-
-on:
-  workflow_dispatch:
-    inputs:
-      confirmation:
-        description: 'Type "DESTROY" to confirm destruction of Juice Shop infrastructure'
-        required: true
-        type: string
-      target:
-        description: 'Destroy specific resource (optional - leave empty to destroy all)'
-        required: false
-        type: string
-
-env:
-  TF_WORKING_DIR: ./terraform
-  TF_VERSION: 1.6.0
-  AWS_REGION: us-east-2
-
-jobs:
-  validate-destroy-request:
-    name: Validate Destroy Request
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check Confirmation
-        run: |
-          if [ "${{ github.event.inputs.confirmation }}" != "DESTROY" ]; then
-            echo "❌ Confirmation failed. You must type 'DESTROY' exactly to proceed."
-            exit 1
-          fi
-          echo "✅ Destroy confirmation validated"
-          
-      - name: Display Warning
-        run: |
-          echo "⚠️⚠️⚠️ WARNING ⚠️⚠️⚠️"
-          echo ""
-          echo "This will destroy the Juice Shop infrastructure:"
-          echo "  • VPC and networking (if created by Terraform)"
-          echo "  • EC2 instance running Juice Shop"
-          echo "  • CloudFront distribution"
-          echo "  • WAF Web ACL"
-          echo "  • Security groups"
-          echo "  • S3 logs bucket (including all logs!)"
-          echo "  • SNS topics and subscriptions"
-          echo "  • CloudWatch alarms"
-          echo ""
-          echo "Target: ${{ github.event.inputs.target || 'ALL RESOURCES' }}"
-          echo ""
-          echo "Initiated by: ${{ github.actor }}"
-          echo "Repository: ${{ github.repository }}"
-
-  terraform-destroy-plan:
-    name: Terraform Destroy Plan
-    runs-on: ubuntu-latest
-    needs: validate-destroy-request
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      id-token: write
-      issues: write
-    defaults:
-      run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: GitHubActions-JuiceShop-DestroyPlan
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Terraform Init
-        run: terraform init -input=false
-
-      - name: Terraform Destroy Plan
-        id: destroy_plan
-        env:
-          TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
-          TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
-          TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
-          TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
-        run: |
-          if [ -n "${{ github.event.inputs.target }}" ]; then
-            echo "Planning destroy for: ${{ github.event.inputs.target }}"
-            terraform plan -destroy -target="${{ github.event.inputs.target }}" -no-color -input=false -out=destroy.tfplan 2>&1 | tee destroy_plan_output.txt
-          else
-            echo "Planning destroy for ALL Juice Shop resources"
-            terraform plan -destroy -no-color -input=false -out=destroy.tfplan 2>&1 | tee destroy_plan_output.txt
-          fi
-          echo "exitcode=$?" >> $GITHUB_OUTPUT
-
-      - name: Save Destroy Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-destroy-plan
-          path: ${{ env.TF_WORKING_DIR }}/destroy.tfplan
-          retention-days: 7
-
-      - name: Save Destroy Plan Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-destroy-plan-output
-          path: ${{ env.TF_WORKING_DIR }}/destroy_plan_output.txt
-          retention-days: 7
-
-      - name: Create Destroy Plan Issue
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const planOutput = fs.readFileSync('terraform/destroy_plan_output.txt', 'utf8');
-            const truncatedPlan = planOutput.length > 65000 ? 
-              planOutput.substring(0, 65000) + '\n... (truncated)' : 
-              planOutput;
-            
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: '🗑️ Juice Shop Destroy Plan - Review Required',
-              body: `## ⚠️ Juice Shop Infrastructure Destroy Plan
-              
-              **Requested by:** @${{ github.actor }}
-              **Date:** ${new Date().toISOString()}
-              **Target:** ${{ github.event.inputs.target || 'ALL RESOURCES' }}
-              **Workflow:** [View Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-              
-              ### Resources to be Destroyed
-              
-              <details><summary>Click to view destroy plan</summary>
-              
-              \`\`\`terraform
-              ${truncatedPlan}
-              \`\`\`
-              
-              </details>
-              
-              ### ⚠️ WARNING
-              
-              This will permanently delete the Juice Shop deployment including:
-              - CloudFront distribution
-              - EC2 instance with Juice Shop
-              - All logs in S3
-              - WAF configuration
-              - Monitoring and alerts
-              
-              ### Next Steps
-              
-              Review the plan and approve the destroy workflow to proceed.
-              
-              **Labels:** infrastructure, destroy, critical, juice-shop`,
-              labels: ['infrastructure', 'destroy', 'critical', 'juice-shop']
-            });
-
-      - name: Check Plan Status
-        if: steps.destroy_plan.outputs.exitcode != 0
-        run: exit 1
-
-  terraform-destroy:
+terraform-destroy:
     name: Terraform Destroy
     runs-on: ubuntu-latest
     needs: terraform-destroy-plan
@@ -176,9 +10,6 @@ jobs:
       contents: read
       id-token: write
       issues: write
-    defaults:
-      run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
     
     steps:
       - name: Final Warning
@@ -205,6 +36,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -input=false
 
       - name: Download Destroy Plan
@@ -214,6 +46,7 @@ jobs:
           path: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Destroy
+        working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
