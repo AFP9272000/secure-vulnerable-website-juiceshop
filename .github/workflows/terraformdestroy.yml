@@ -13,7 +13,6 @@ on:
         type: string
 
 env:
-  TF_WORKING_DIR: terraform
   TF_VERSION: 1.6.0
   AWS_REGION: us-east-2
 
@@ -34,20 +33,9 @@ jobs:
         run: |
           echo "⚠️⚠️⚠️ WARNING ⚠️⚠️⚠️"
           echo ""
-          echo "This will destroy the Juice Shop infrastructure:"
-          echo "  • VPC and networking (if created by Terraform)"
-          echo "  • EC2 instance running Juice Shop"
-          echo "  • CloudFront distribution"
-          echo "  • WAF Web ACL"
-          echo "  • Security groups"
-          echo "  • S3 logs bucket (including all logs!)"
-          echo "  • SNS topics and subscriptions"
-          echo "  • CloudWatch alarms"
-          echo ""
-          echo "Target: ${{ github.event.inputs.target || 'ALL RESOURCES' }}"
+          echo "This will destroy the Juice Shop infrastructure"
           echo ""
           echo "Initiated by: ${{ github.actor }}"
-          echo "Repository: ${{ github.repository }}"
 
   terraform-destroy-plan:
     name: Terraform Destroy Plan
@@ -57,10 +45,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      issues: write
-    defaults:
-      run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
     
     steps:
       - name: Checkout code
@@ -79,48 +63,27 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
+        working-directory: terraform
         run: terraform init -input=false
 
       - name: Terraform Destroy Plan
         id: destroy_plan
+        working-directory: terraform
         env:
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
           TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
           TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
         run: |
-          if [ -n "${{ github.event.inputs.target }}" ]; then
-            echo "Planning destroy for: ${{ github.event.inputs.target }}"
-            terraform plan -destroy -target="${{ github.event.inputs.target }}" -no-color -input=false -out=destroy.tfplan 2>&1 | tee destroy_plan_output.txt
-          else
-            echo "Planning destroy for ALL Juice Shop resources"
-            terraform plan -destroy -no-color -input=false -out=destroy.tfplan 2>&1 | tee destroy_plan_output.txt
-          fi
+          terraform plan -destroy -no-color -input=false -out=destroy.tfplan
           echo "exitcode=$?" >> $GITHUB_OUTPUT
 
       - name: Save Destroy Plan Artifact
         uses: actions/upload-artifact@v4
         with:
           name: terraform-destroy-plan
-          path: ${{ env.TF_WORKING_DIR }}/destroy.tfplan
+          path: terraform/destroy.tfplan
           retention-days: 7
-
-      - name: Save Destroy Plan Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-destroy-plan-output
-          path: ${{ env.TF_WORKING_DIR }}/destroy_plan_output.txt
-          retention-days: 7
-
-      - name: Display Destroy Plan
-        run: |
-          echo "📋 Destroy Plan Summary"
-          echo "======================="
-          cat destroy_plan_output.txt
-
-      - name: Check Plan Status
-        if: steps.destroy_plan.outputs.exitcode != 0
-        run: exit 1
 
   terraform-destroy:
     name: Terraform Destroy
@@ -133,17 +96,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    defaults:
-      run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
     
     steps:
       - name: Final Warning
         run: |
-          echo "⚠️⚠️⚠️ FINAL WARNING ⚠️⚠️⚠️"
-          echo ""
-          echo "Destroying Juice Shop infrastructure in 10 seconds..."
-          echo "This action is IRREVERSIBLE!"
+          echo "⚠️ Destroying in 10 seconds..."
           sleep 10
 
       - name: Checkout code
@@ -162,35 +119,24 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
+        working-directory: terraform
         run: terraform init -input=false
 
       - name: Download Destroy Plan
         uses: actions/download-artifact@v4
         with:
           name: terraform-destroy-plan
-          path: ${{ env.TF_WORKING_DIR }}
+          path: terraform
 
       - name: Terraform Destroy
+        working-directory: terraform
         env:
           TF_VAR_alert_email: ${{ secrets.TF_VAR_ALERT_EMAIL }}
           TF_VAR_key_name: ${{ secrets.TF_VAR_KEY_NAME }}
           TF_VAR_logs_bucket_name: ${{ secrets.TF_VAR_LOGS_BUCKET_NAME }}
           TF_VAR_my_ip_cidr: ${{ secrets.TF_VAR_MY_IP_CIDR }}
-        run: |
-          echo "🗑️ Executing destroy..."
-          terraform apply -auto-approve destroy.tfplan 2>&1 | tee destroy_output.txt
-          echo "✅ Destroy completed"
+        run: terraform apply -auto-approve destroy.tfplan
 
-      - name: Save Destroy Output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-destroy-output
-          path: ${{ env.TF_WORKING_DIR }}/destroy_output.txt
-          retention-days: 90
-
-      - name: Success Notification
+      - name: Success
         if: success()
-        run: |
-          echo "✅ Juice Shop infrastructure destroyed successfully!"
-          echo "Verify in AWS Console: https://console.aws.amazon.com"
+        run: echo "✅ Infrastructure destroyed!"
