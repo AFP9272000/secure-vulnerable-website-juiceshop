@@ -1,4 +1,3 @@
-﻿# Terraform remote state backend for Juice Shop
 terraform {
   backend "s3" {
     bucket         = "afp9272000-juiceshop-tfstate-1763232924"
