@@ -108,7 +108,7 @@ resource "aws_wafv2_web_acl" "cf" {
 # Wait briefly after CF creation to avoid propagation race
 resource "time_sleep" "wait_for_cf" {
   depends_on      = [aws_cloudfront_distribution.juice]
-  create_duration = "120s"
+  create_duration = "300s"
 }
 
 # Associate WAF Web ACL to the CloudFront distribution
