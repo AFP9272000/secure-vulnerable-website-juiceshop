@@ -19,7 +19,7 @@ This project demonstrates a **complete DevSecOps pipeline** for deploying a vuln
 * **CI/CD with approval gates** for production
 * **Remote state management** with S3 + DynamoDB locking
 
-**Purpose:** Deploy a vulnerable application securely while implementing enterprise-grade DevOps practices.
+**Purpose:** Deploy a vulnerable application securely while implementing enterprise-grade DevOps practices. 
 
 ---
 
